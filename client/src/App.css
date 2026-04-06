@@ -1,0 +1,257 @@
+/* Layout */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #051f20 0%, #163832 50%, #235347 100%);
+  border-bottom: 1px solid #163832;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-navbar {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0b2b26;
+  border-right: 1px solid #163832;
+}
+
+.navbar-title {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #163832;
+  flex-shrink: 0;
+}
+
+.navbar-scroll {
+  flex: 1;
+  overflow: hidden;
+}
+
+.navbar-footer {
+  flex-shrink: 0;
+}
+
+.navbar-footer-section {
+  padding: 0.75rem;
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background: #1a1a1a;
+}
+
+.app-main--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Path card */
+.path-card {
+  background: #1a1a1a !important;
+  border: 2px solid #3a3a3a !important;
+  transition: all 0.2s ease;
+}
+
+.path-card:hover {
+  border-color: #235347 !important;
+  box-shadow: 0 4px 12px rgba(142, 182, 155, 0.2) !important;
+}
+
+.path-card.selected {
+  border-color: #235347 !important;
+  background: #0b2b26 !important;
+}
+
+.severity-border-critical {
+  border-left: 4px solid #ef4444 !important;
+}
+.severity-border-high {
+  border-left: 4px solid #f97316 !important;
+}
+.severity-border-medium {
+  border-left: 4px solid #f59e0b !important;
+}
+.severity-border-safe {
+  border-left: 4px solid #235347 !important;
+}
+
+/* Scan form */
+.scan-form-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px);
+  padding: 2rem;
+}
+
+.scan-form-card {
+  width: 100%;
+  max-width: 560px;
+  background: #0b2b26 !important;
+  border: 1px solid #163832 !important;
+}
+
+/* Content header */
+.content-header {
+  margin-bottom: 1rem;
+}
+
+/* Findings accordion */
+.finding-accordion-item {
+  background: #252525 !important;
+  border: 1px solid #3a3a3a !important;
+}
+
+.finding-accordion-item.has-vuln {
+  border-left: 3px solid #ef4444 !important;
+}
+
+/* Vulnerability paper */
+.vuln-paper {
+  background: #1a1a1a !important;
+}
+.vuln-critical {
+  border-left: 3px solid #ef4444 !important;
+}
+.vuln-high {
+  border-left: 3px solid #f97316 !important;
+}
+.vuln-medium {
+  border-left: 3px solid #f59e0b !important;
+}
+.vuln-low {
+  border-left: 3px solid #235347 !important;
+}
+.vuln-info {
+  border-left: 3px solid #555555 !important;
+}
+
+/* Code view */
+.code-view-container {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  height: calc(100vh - 130px);
+  gap: 0;
+  overflow: hidden;
+}
+
+.code-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid #3a3a3a;
+  background: #252525;
+}
+
+.code-panel-header {
+  border-bottom: 1px solid #3a3a3a;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.code-scroll {
+  flex: 1;
+  overflow: auto;
+}
+
+.code-display {
+  background: #1a1a1a;
+  padding: 1rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.code-line {
+  display: flex;
+  padding: 0.125rem 0;
+  transition: background 0.2s ease;
+}
+
+.code-line.has-finding {
+  background: rgba(245, 158, 11, 0.15);
+  cursor: pointer;
+  border-left: 2px solid #f59e0b;
+}
+
+.code-line.has-vuln {
+  background: rgba(239, 68, 68, 0.2);
+  border-left: 2px solid #ef4444;
+}
+
+.code-line:hover.has-finding {
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.line-number {
+  color: #64748b;
+  padding-right: 1.5rem;
+  min-width: 3.5rem;
+  text-align: right;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-content {
+  color: #daf1de;
+  white-space: pre;
+  flex: 1;
+}
+
+.details-panel {
+  background: #252525;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+/* Findings tabs */
+.findings-tabs {
+  height: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+/* Responsive */
+@media (max-width: 62em) {
+  .code-view-container {
+    grid-template-columns: 1fr;
+  }
+  .details-panel {
+    border-top: 1px solid #3a3a3a;
+    max-height: 400px;
+  }
+}
