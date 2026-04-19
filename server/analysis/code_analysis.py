@@ -17,12 +17,13 @@ def _parse_json_response(response: str) -> dict:
     return json.loads(response.strip())
 
 
-def scan_code_for_vulnerabilities(code: str) -> dict:
+def scan_code_for_vulnerabilities(code: str, content_type: str = "html") -> dict:
     """
-    Analyzes the submitted HTML, CSS, or JavaScript code for vulnerabilities using Ollama.
+    Analyzes the submitted code for vulnerabilities using Ollama.
 
     Args:
-        code (str): The HTML, CSS, or JavaScript code to be scanned for vulnerabilities.
+        code (str): The code to be scanned for vulnerabilities.
+        content_type (str): The type of content being scanned. One of "html", "js", or "css".
 
     Returns:
         dict: A dictionary containing the results of the vulnerability scan.
@@ -30,12 +31,80 @@ def scan_code_for_vulnerabilities(code: str) -> dict:
     try:
         ollama = Ollama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
+        if content_type == "js":
+            preamble = "Analyze the following JavaScript code for security vulnerabilities:"
+            type_definitions = """Type definitions (use only what applies to JavaScript):
+- "secret": any hardcoded credentials, API keys, tokens, or passwords
+- "script:internal": the JavaScript code itself"""
+            content_checklist = """Vulnerability checklist — flag ANY of the following when found:
+
+DOM XSS sinks (flag every occurrence regardless of whether the value appears controlled):
+- innerHTML, outerHTML, insertAdjacentHTML assignments
+- document.write() or document.writeln()
+- element.setAttribute() with event handler attribute names
+- location.href, location.replace(), location.assign() set to a non-literal value
+- window.open() with a non-literal URL
+
+Dangerous JS execution sinks:
+- eval(), Function(), setTimeout(string), setInterval(string)
+- script element creation via document.createElement("script")
+
+Insecure patterns:
+- Use of var instead of let/const (scope leakage risk)
+- postMessage() without origin validation
+- localStorage/sessionStorage storing sensitive-looking keys
+- Hardcoded IPs, internal hostnames, or non-HTTPS URLs"""
+        else:
+            preamble = "Analyze the following web page for security vulnerabilities and issues:"
+            type_definitions = """Type definitions:
+- "comment": HTML comments (<!-- ... -->)
+- "form": HTML <form> elements
+- "link": <a> tags or other navigational links
+- "package": referenced external libraries/packages (e.g., jQuery, Bootstrap CDN links)
+- "secret": any hardcoded credentials, API keys, tokens, or passwords
+- "script:external": <script src="..."> tags loading external files
+- "script:internal": <script> blocks with inline JavaScript
+- "script:in-element": event handler attributes on HTML elements (e.g., onerror, onclick, onload)"""
+            content_checklist = """Vulnerability checklist — flag ANY of the following when found:
+
+DOM XSS sinks (flag every occurrence regardless of whether the value appears controlled):
+- innerHTML, outerHTML, insertAdjacentHTML assignments
+- document.write() or document.writeln()
+- element.setAttribute() with event handler attribute names
+- location.href, location.replace(), location.assign() set to a non-literal value
+- window.open() with a non-literal URL
+
+Dangerous JS execution sinks:
+- eval(), Function(), setTimeout(string), setInterval(string)
+- script element creation via document.createElement("script")
+
+Insecure patterns:
+- Use of var instead of let/const (scope leakage risk)
+- postMessage() without origin validation
+- localStorage/sessionStorage storing sensitive-looking keys
+- Hardcoded IPs, internal hostnames, or non-HTTPS URLs
+- Commented-out credentials or debug code in HTML comments
+
+Form issues:
+- Missing CSRF token
+- action URL using HTTP instead of HTTPS
+- autocomplete not disabled on password fields
+- password or sensitive fields with type="text"
+
+Package issues:
+- CDN-loaded packages without SRI (integrity + crossorigin attributes)
+- References to known outdated or vulnerable library versions
+
+Link issues:
+- target="_blank" without rel="noopener noreferrer"
+- javascript: protocol hrefs"""
+
         prompt = f"""
-Analyze the following web page for security vulnerabilities and issues:
+{preamble}
 
 {code}
 
-Scan the submitted content and identify findings including HTML comments, forms, links, packages, secrets, and scripts. Only include a finding in the results if it has at least one vulnerability. Omit any finding where the vulnerabilities array would be empty.
+Scan the submitted content and identify findings. Only include a finding in the results if it has at least one vulnerability. Omit any finding where the vulnerabilities array would be empty.
 
 Return ONLY a valid JSON object in this exact format, with no extra text:
 
@@ -50,15 +119,9 @@ Return ONLY a valid JSON object in this exact format, with no extra text:
     ]
 }}
 
-Type definitions:
-- "comment": HTML comments (<!-- ... -->)
-- "form": HTML <form> elements
-- "link": <a> tags or other navigational links
-- "package": referenced external libraries/packages (e.g., jQuery, Bootstrap CDN links)
-- "secret": any hardcoded credentials, API keys, tokens, or passwords
-- "script:external": <script src="..."> tags loading external files
-- "script:internal": <script> blocks with inline JavaScript
-- "script:in-element": event handler attributes on HTML elements (e.g., onerror, onclick, onload)
+{type_definitions}
+
+{content_checklist}
 """
 
         response = ollama.invoke(prompt)
