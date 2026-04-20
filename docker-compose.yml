@@ -21,7 +21,7 @@ services:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
       - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}
     depends_on:
       ollama:
         condition: service_healthy
@@ -39,6 +39,10 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_NUM_PARALLEL=1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "ollama", "list"]

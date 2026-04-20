@@ -2,7 +2,7 @@
 import os
 import re
 
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b")
@@ -29,7 +29,7 @@ def scan_code_for_vulnerabilities(code: str, content_type: str = "html") -> dict
         dict: A dictionary containing the results of the vulnerability scan.
     """
     try:
-        ollama = Ollama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
+        ollama = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
         if content_type == "js":
             preamble = "Analyze the following JavaScript code for security vulnerabilities:"

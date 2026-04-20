@@ -9,7 +9,7 @@ from crawler.ssl_utils import get_ssl_certificate
 from crawler.url_utils import categorize_url
 
 
-def fetch_linked_scripts(html, page_url):
+def fetch_linked_scripts(html, page_url, headers=None):
     """Fetch and scan same-domain JS files referenced by <script src>."""
     soup = BeautifulSoup(html, 'html.parser')
     parsed_page = urlparse(page_url)
@@ -25,7 +25,7 @@ def fetch_linked_scripts(html, page_url):
             continue
 
         try:
-            js_response = requests.get(full_url, timeout=10)
+            js_response = requests.get(full_url, headers=headers, timeout=10)
             js_response.raise_for_status()
             script_findings = scan_code_for_vulnerabilities(js_response.text, content_type="js").get("results", [])
             for finding in script_findings:
@@ -37,13 +37,13 @@ def fetch_linked_scripts(html, page_url):
     return results
 
 
-def process_page(url):
-    response = requests.get(url, timeout=10)
+def process_page(url, headers=None):
+    response = requests.get(url, headers=headers, timeout=10)
     parsed_url = urlparse(url)
     raw_html = response.text
 
     html_findings = scan_code_for_vulnerabilities(raw_html).get("results", [])
-    script_findings = fetch_linked_scripts(raw_html, url)
+    script_findings = fetch_linked_scripts(raw_html, url, headers=headers)
 
     page_data = {
         "path": parsed_url.path or "/",
@@ -110,7 +110,7 @@ def extract_links(html_content, base_url):
     return links
 
 
-def crawl_website(start_url, base_url):
+def crawl_website(start_url, base_url, headers=None):
     parsed_base_url = urlparse(base_url)
     sites = []
     crawled_urls = set()
@@ -128,7 +128,7 @@ def crawl_website(start_url, base_url):
             continue
 
         try:
-            page_data, raw_html = process_page(current_url)
+            page_data, raw_html = process_page(current_url, headers=headers)
             crawled_urls.add(current_url)
             sites.append(page_data)
 
