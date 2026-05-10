@@ -36,5 +36,5 @@ except Exception as e:
     sys.exit(1)
 EOF
 
-# Start the Flask application
-exec python -m flask run --host=0.0.0.0 --port=5000
+# Start the Flask application via Gunicorn
+exec gunicorn --bind 0.0.0.0:5000 --workers 2 app:app
