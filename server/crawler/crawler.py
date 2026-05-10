@@ -6,7 +6,7 @@ from urllib.parse import urlparse, urljoin
 
 from analysis.code_analysis import scan_code_for_vulnerabilities
 from crawler.ssl_utils import get_ssl_certificate
-from crawler.url_utils import categorize_url
+from crawler.url_utils import categorize_url, safe_get
 
 
 def fetch_linked_scripts(html, page_url, headers=None):
@@ -25,7 +25,7 @@ def fetch_linked_scripts(html, page_url, headers=None):
             continue
 
         try:
-            js_response = requests.get(full_url, headers=headers, timeout=10)
+            js_response = safe_get(full_url, headers=headers, timeout=10)
             js_response.raise_for_status()
             script_findings = scan_code_for_vulnerabilities(js_response.text, content_type="js").get("results", [])
             for finding in script_findings:
@@ -38,7 +38,7 @@ def fetch_linked_scripts(html, page_url, headers=None):
 
 
 def process_page(url, headers=None):
-    response = requests.get(url, headers=headers, timeout=10)
+    response = safe_get(url, headers=headers, timeout=10)
     parsed_url = urlparse(url)
     raw_html = response.text
 
