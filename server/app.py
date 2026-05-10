@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import Flask, request, jsonify
@@ -7,6 +8,11 @@ from urllib.parse import urlparse
 from crawler.crawler import crawl_website
 from crawler.url_utils import _is_ssrf_safe
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = Flask(__name__)
 
@@ -51,8 +57,13 @@ def crawl():
         if k.lower() not in _HOP_BY_HOP_HEADERS
     }
 
+    max_pages = data.get('max_pages', 50)
+    if not isinstance(max_pages, int) or max_pages < 1:
+        return jsonify({"error": "'max_pages' must be a positive integer"}), 400
+    max_pages = min(max_pages, 200)
+
     # Start crawling the website
-    result = crawl_website(url, f"{parsed_url.scheme}://{parsed_url.netloc}", headers=custom_headers)
+    result = crawl_website(url, f"{parsed_url.scheme}://{parsed_url.netloc}", headers=custom_headers, max_pages=max_pages)
 
     return jsonify(result), 200
 

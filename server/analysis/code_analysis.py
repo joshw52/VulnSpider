@@ -1,8 +1,11 @@
 ﻿import json
+import logging
 import os
 import re
 
 from langchain_ollama import OllamaLLM
+
+logger = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b")
@@ -131,5 +134,5 @@ Return ONLY a valid JSON object in this exact format, with no extra text:
         return data
 
     except Exception as e:
-        print(f"Ollama analysis failed: {e}")
+        logger.error("Ollama analysis failed: %s", e)
         return {"error": str(e), "results": []}
