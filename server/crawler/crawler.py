@@ -123,12 +123,13 @@ def extract_links(soup, base_url):
     return links
 
 
-def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robots=False, max_workers=5):
+def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
     parsed_base_url = urlparse(base_url)
     sites = []
     crawled_urls = set()
     queued_urls = {start_url}
-    frontier = [start_url]
+    # Frontier stores (url, depth) tuples — depth 0 is the start URL
+    frontier = [(start_url, 0)]
 
     # Merge caller-supplied headers with the default User-Agent
     merged_headers = {**_DEFAULT_HEADERS, **(headers or {})}
@@ -155,7 +156,7 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robot
         # Take the next slice from the frontier and filter disallowed URLs
         to_process = frontier[:remaining]
         frontier = frontier[remaining:]
-        batch = [url for url in to_process if _is_allowed(url)]
+        batch = [(url, depth) for url, depth in to_process if _is_allowed(url)]
 
         if not batch:
             continue
@@ -163,21 +164,23 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robot
         # Process the batch in parallel; link discovery happens in the main thread
         # after futures complete so crawled_urls / frontier mutations are thread-safe.
         with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
-            future_to_url = {
-                executor.submit(process_page, url, merged_headers): url
-                for url in batch
+            future_to_url_depth = {
+                executor.submit(process_page, url, merged_headers): (url, depth)
+                for url, depth in batch
             }
-            for future in as_completed(future_to_url):
-                url = future_to_url[future]
+            for future in as_completed(future_to_url_depth):
+                url, depth = future_to_url_depth[future]
                 try:
                     page_data, soup = future.result()
                     crawled_urls.add(url)
                     sites.append(page_data)
 
-                    for new_url in extract_links(soup, base_url):
-                        if new_url not in crawled_urls and new_url not in queued_urls:
-                            queued_urls.add(new_url)
-                            frontier.append(new_url)
+                    # Only follow links if we haven't hit the depth limit
+                    if max_depth is None or depth < max_depth:
+                        for new_url in extract_links(soup, base_url):
+                            if new_url not in crawled_urls and new_url not in queued_urls:
+                                queued_urls.add(new_url)
+                                frontier.append((new_url, depth + 1))
 
                 except requests.RequestException as e:
                     logger.warning("Failed to fetch %s: %s", url, e)

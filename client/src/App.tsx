@@ -7,6 +7,7 @@ import {
   Code,
   Divider,
   Group,
+  NumberInput,
   ScrollArea,
   Stack,
   Tabs,
@@ -51,7 +52,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('findings');
   const [loading, setLoading] = useState(false);
 
-  const handleScan = async (url: string, respectRobots: boolean) => {
+  const handleScan = async (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '') => {
     setLoading(true);
     const notifId = notifications.show({
       loading: true,
@@ -64,7 +65,12 @@ function App() {
       const response = await fetch(`${API_URL}/crawl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, respect_robots: respectRobots }),
+        body: JSON.stringify({
+          url,
+          respect_robots: respectRobots,
+          max_pages: maxPages,
+          ...(maxDepth !== '' ? { max_depth: maxDepth } : {}),
+        }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -239,17 +245,19 @@ function App() {
 }
 
 interface ScanFormProps {
-  onScan: (url: string, respectRobots: boolean) => void;
+  onScan: (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '') => void;
   loading: boolean;
 }
 
 function ScanForm({ onScan, loading }: ScanFormProps) {
   const [url, setUrl] = useState('');
   const [respectRobots, setRespectRobots] = useState(false);
+  const [maxPages, setMaxPages] = useState<number>(50);
+  const [maxDepth, setMaxDepth] = useState<number | ''>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) onScan(url.trim(), respectRobots);
+    if (url.trim()) onScan(url.trim(), respectRobots, maxPages, maxDepth);
   };
 
   return (
@@ -284,6 +292,28 @@ function ScanForm({ onScan, loading }: ScanFormProps) {
                 >
                   {loading ? 'Scanning...' : 'Scan'}
                 </Button>
+              </Group>
+              <Group gap="sm" grow>
+                <NumberInput
+                  disabled={loading}
+                  label="Max pages"
+                  min={1}
+                  max={200}
+                  value={maxPages}
+                  onChange={(v) => setMaxPages(typeof v === 'number' ? v : 50)}
+                  size="sm"
+                />
+                <NumberInput
+                  disabled={loading}
+                  label="Max depth"
+                  description="Leave empty for unlimited"
+                  min={1}
+                  max={20}
+                  placeholder="Unlimited"
+                  value={maxDepth}
+                  onChange={(v) => setMaxDepth(v === '' ? '' : typeof v === 'number' ? v : '')}
+                  size="sm"
+                />
               </Group>
               <Checkbox
                 checked={respectRobots}

@@ -62,12 +62,18 @@ def crawl():
         return jsonify({"error": "'max_pages' must be a positive integer"}), 400
     max_pages = min(max_pages, 200)
 
+    max_depth = data.get('max_depth', None)
+    if max_depth is not None:
+        if not isinstance(max_depth, int) or max_depth < 1:
+            return jsonify({"error": "'max_depth' must be a positive integer or omitted"}), 400
+        max_depth = min(max_depth, 20)
+
     respect_robots = data.get('respect_robots', False)
     if not isinstance(respect_robots, bool):
         return jsonify({"error": "'respect_robots' must be a boolean"}), 400
 
     # Start crawling the website
-    result = crawl_website(url, f"{parsed_url.scheme}://{parsed_url.netloc}", headers=custom_headers, max_pages=max_pages, respect_robots=respect_robots)
+    result = crawl_website(url, f"{parsed_url.scheme}://{parsed_url.netloc}", headers=custom_headers, max_pages=max_pages, max_depth=max_depth, respect_robots=respect_robots)
 
     return jsonify(result), 200
 
