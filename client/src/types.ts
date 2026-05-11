@@ -49,6 +49,21 @@ export interface Site {
 export interface ScanData {
   certificate: string;
   sites: Site[];
+  robots_txt: RobotsTxtResult | null;
+}
+
+export interface RobotsTxtRule {
+  user_agent: string;
+  disallowed: string[];
+  allowed: string[];
+}
+
+export interface RobotsTxtResult {
+  found: boolean;
+  raw: string | null;
+  rules: RobotsTxtRule[];
+  sitemaps: string[];
+  crawl_delay: number | null;
 }
 
 export interface PathCardStats {

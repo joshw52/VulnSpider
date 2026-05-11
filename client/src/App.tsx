@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Code,
   Divider,
   Group,
@@ -32,6 +33,7 @@ import type {
   Site,
   CodeFinding,
   HeaderFinding,
+  RobotsTxtResult,
   ViewMode,
   FindingTabKey,
   PathCardStats,
@@ -48,7 +50,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('findings');
   const [loading, setLoading] = useState(false);
 
-  const handleScan = async (url: string) => {
+  const handleScan = async (url: string, respectRobots: boolean) => {
     setLoading(true);
     const notifId = notifications.show({
       loading: true,
@@ -61,7 +63,7 @@ function App() {
       const response = await fetch(`${API_URL}/crawl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, respect_robots: respectRobots }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -71,6 +73,7 @@ function App() {
       data.sites = data.sites.map((site) => ({
         ...site,
         code_analysis: Array.isArray(site.code_analysis) ? site.code_analysis : [],
+        header_analysis: Array.isArray(site.header_analysis) ? site.header_analysis : [],
       }));
       setScanData(data);
       if (data.sites.length > 0) {
@@ -170,6 +173,14 @@ function App() {
           </ScrollArea>
 
           <div className="navbar-footer">
+            {scanData.robots_txt && (
+              <>
+                <Divider />
+                <div className="navbar-footer-section">
+                  <RobotsTxtPanel robotsTxt={scanData.robots_txt} />
+                </div>
+              </>
+            )}
             <Divider />
             <div className="navbar-footer-section">
               <Text fw={600} size="sm" mb="xs">
@@ -226,16 +237,17 @@ function App() {
 }
 
 interface ScanFormProps {
-  onScan: (url: string) => void;
+  onScan: (url: string, respectRobots: boolean) => void;
   loading: boolean;
 }
 
 function ScanForm({ onScan, loading }: ScanFormProps) {
   const [url, setUrl] = useState('');
+  const [respectRobots, setRespectRobots] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) onScan(url.trim());
+    if (url.trim()) onScan(url.trim(), respectRobots);
   };
 
   return (
@@ -251,25 +263,34 @@ function ScanForm({ onScan, loading }: ScanFormProps) {
             </Text>
           </div>
           <form onSubmit={handleSubmit}>
-            <Group align="flex-end" gap="sm">
-              <TextInput
+            <Stack gap="sm">
+              <Group align="flex-end" gap="sm">
+                <TextInput
+                  disabled={loading}
+                  flex={1}
+                  leftSection={<IconSearch size={16} />}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  required
+                  type="url"
+                  value={url}
+                />
+                <Button
+                  disabled={loading || !url.trim()}
+                  leftSection={<IconSearch size={16} />}
+                  type="submit"
+                >
+                  {loading ? 'Scanning...' : 'Scan'}
+                </Button>
+              </Group>
+              <Checkbox
+                checked={respectRobots}
                 disabled={loading}
-                flex={1}
-                leftSection={<IconSearch size={16} />}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com"
-                required
-                type="url"
-                value={url}
+                label="Respect robots.txt"
+                onChange={(e) => setRespectRobots(e.currentTarget.checked)}
+                size="sm"
               />
-              <Button
-                disabled={loading || !url.trim()}
-                leftSection={<IconSearch size={16} />}
-                type="submit"
-              >
-                {loading ? 'Scanning...' : 'Scan'}
-              </Button>
-            </Group>
+            </Stack>
           </form>
         </Stack>
       </Paper>
@@ -730,6 +751,90 @@ function HeadersPanel({ findings }: HeadersPanelProps) {
         </Paper>
       ))}
     </Stack>
+  );
+}
+
+interface RobotsTxtPanelProps {
+  robotsTxt: RobotsTxtResult;
+}
+
+function RobotsTxtPanel({ robotsTxt }: RobotsTxtPanelProps) {
+  const allDisallowed = robotsTxt.rules.flatMap((r) => r.disallowed);
+  const wildcardRule = robotsTxt.rules.find((r) => r.user_agent === '*');
+  const wildcardDisallowed = wildcardRule?.disallowed ?? [];
+
+  return (
+    <Accordion variant="filled" radius="sm">
+      <Accordion.Item value="robots">
+        <Accordion.Control>
+          <Group gap="xs">
+            <Text fw={600} size="sm">
+              Robots.txt
+            </Text>
+            {robotsTxt.found ? (
+              <Badge color="orange" size="xs" variant="light">
+                {allDisallowed.length} disallowed path{allDisallowed.length !== 1 ? 's' : ''}
+              </Badge>
+            ) : (
+              <Badge color="gray" size="xs" variant="light">
+                Not found
+              </Badge>
+            )}
+          </Group>
+        </Accordion.Control>
+        <Accordion.Panel>
+          {!robotsTxt.found ? (
+            <Text c="dimmed" size="xs">
+              No robots.txt file was found at this origin.
+            </Text>
+          ) : (
+            <Stack gap="xs">
+              {wildcardDisallowed.length > 0 && (
+                <div>
+                  <Text c="dimmed" fw={600} mb={4} size="xs" tt="uppercase">
+                    Disallowed (* agent)
+                  </Text>
+                  <Stack gap={2}>
+                    {wildcardDisallowed.map((path, i) => (
+                      <Code key={i} block={false}>
+                        {path}
+                      </Code>
+                    ))}
+                  </Stack>
+                </div>
+              )}
+              {robotsTxt.sitemaps.length > 0 && (
+                <div>
+                  <Text c="dimmed" fw={600} mb={4} size="xs" tt="uppercase">
+                    Sitemaps
+                  </Text>
+                  <Stack gap={2}>
+                    {robotsTxt.sitemaps.map((s, i) => (
+                      <Code key={i} block={false}>
+                        {s}
+                      </Code>
+                    ))}
+                  </Stack>
+                </div>
+              )}
+              {robotsTxt.crawl_delay !== null && (
+                <Text size="xs">
+                  Crawl-delay: <Code>{robotsTxt.crawl_delay}s</Code>
+                </Text>
+              )}
+              {robotsTxt.raw && (
+                <div>
+                  <Text c="dimmed" fw={600} mb={4} size="xs" tt="uppercase">
+                    Raw
+                  </Text>
+                  <Code block>{robotsTxt.raw}</Code>
+                </div>
+              )}
+            </Stack>
+          )}
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
   );
 }
 

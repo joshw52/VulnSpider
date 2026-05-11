@@ -7,6 +7,7 @@ from urllib.parse import urlparse, urljoin
 
 from analysis.code_analysis import scan_code_for_vulnerabilities
 from analysis.header_analysis import analyze_headers
+from crawler.robots_utils import fetch_robots_txt, is_disallowed
 from crawler.ssl_utils import get_ssl_certificate
 from crawler.url_utils import categorize_url, safe_get
 
@@ -119,7 +120,7 @@ def extract_links(soup, base_url):
     return links
 
 
-def crawl_website(start_url, base_url, headers=None, max_pages=50):
+def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robots=False):
     parsed_base_url = urlparse(base_url)
     sites = []
     crawled_urls = set()
@@ -134,10 +135,20 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50):
     if parsed_base_url.scheme == 'https':
         certificate = get_ssl_certificate(parsed_base_url.hostname)
 
+    # Fetch and parse robots.txt at crawl start
+    robots_txt = fetch_robots_txt(base_url, headers=merged_headers)
+
     while urls_to_visit and len(crawled_urls) < max_pages:
         current_url = urls_to_visit.pop(0)
         if current_url in crawled_urls:
             continue
+
+        # Optionally skip paths disallowed by robots.txt
+        if respect_robots and robots_txt["found"]:
+            path = urlparse(current_url).path or '/'
+            if is_disallowed(path, robots_txt["rules"]):
+                logger.info("Skipping %s (disallowed by robots.txt)", current_url)
+                continue
 
         try:
             page_data, soup = process_page(current_url, headers=merged_headers)
@@ -153,4 +164,4 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50):
         except requests.RequestException as e:
             logger.warning("Failed to fetch %s: %s", current_url, e)
 
-    return {"certificate": certificate, "sites": sites}
+    return {"certificate": certificate, "sites": sites, "robots_txt": robots_txt}
