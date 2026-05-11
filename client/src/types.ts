@@ -37,6 +37,19 @@ export interface HeaderFinding {
   recommendation: string;
 }
 
+export interface CookieIssue {
+  severity: SeverityLevel;
+  attribute: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface CookieFinding {
+  name: string;
+  raw: string;
+  issues: CookieIssue[];
+}
+
 export interface Site {
   path: string;
   html_content: string;
@@ -44,6 +57,7 @@ export interface Site {
   response_headers: Record<string, string>;
   code_analysis: CodeFinding[];
   header_analysis: HeaderFinding[];
+  cookie_analysis: CookieFinding[];
 }
 
 export interface ScanData {
