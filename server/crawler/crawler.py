@@ -1,5 +1,6 @@
 import base64
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from bs4 import BeautifulSoup
@@ -122,12 +123,12 @@ def extract_links(soup, base_url):
     return links
 
 
-def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robots=False):
+def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robots=False, max_workers=5):
     parsed_base_url = urlparse(base_url)
     sites = []
     crawled_urls = set()
-    queued_urls = set([start_url])
-    urls_to_visit = [start_url]
+    queued_urls = {start_url}
+    frontier = [start_url]
 
     # Merge caller-supplied headers with the default User-Agent
     merged_headers = {**_DEFAULT_HEADERS, **(headers or {})}
@@ -140,30 +141,45 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, respect_robot
     # Fetch and parse robots.txt at crawl start
     robots_txt = fetch_robots_txt(base_url, headers=merged_headers)
 
-    while urls_to_visit and len(crawled_urls) < max_pages:
-        current_url = urls_to_visit.pop(0)
-        if current_url in crawled_urls:
+    def _is_allowed(url):
+        if not (respect_robots and robots_txt["found"]):
+            return True
+        path = urlparse(url).path or '/'
+        if is_disallowed(path, robots_txt["rules"]):
+            logger.info("Skipping %s (disallowed by robots.txt)", url)
+            return False
+        return True
+
+    while frontier and len(crawled_urls) < max_pages:
+        remaining = max_pages - len(crawled_urls)
+        # Take the next slice from the frontier and filter disallowed URLs
+        to_process = frontier[:remaining]
+        frontier = frontier[remaining:]
+        batch = [url for url in to_process if _is_allowed(url)]
+
+        if not batch:
             continue
 
-        # Optionally skip paths disallowed by robots.txt
-        if respect_robots and robots_txt["found"]:
-            path = urlparse(current_url).path or '/'
-            if is_disallowed(path, robots_txt["rules"]):
-                logger.info("Skipping %s (disallowed by robots.txt)", current_url)
-                continue
+        # Process the batch in parallel; link discovery happens in the main thread
+        # after futures complete so crawled_urls / frontier mutations are thread-safe.
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
+            future_to_url = {
+                executor.submit(process_page, url, merged_headers): url
+                for url in batch
+            }
+            for future in as_completed(future_to_url):
+                url = future_to_url[future]
+                try:
+                    page_data, soup = future.result()
+                    crawled_urls.add(url)
+                    sites.append(page_data)
 
-        try:
-            page_data, soup = process_page(current_url, headers=merged_headers)
-            crawled_urls.add(current_url)
-            sites.append(page_data)
+                    for new_url in extract_links(soup, base_url):
+                        if new_url not in crawled_urls and new_url not in queued_urls:
+                            queued_urls.add(new_url)
+                            frontier.append(new_url)
 
-            # Discover new same-domain pages to crawl (once per page, not per link)
-            for new_url in extract_links(soup, base_url):
-                if new_url not in crawled_urls and new_url not in queued_urls:
-                    queued_urls.add(new_url)
-                    urls_to_visit.append(new_url)
-
-        except requests.RequestException as e:
-            logger.warning("Failed to fetch %s: %s", current_url, e)
+                except requests.RequestException as e:
+                    logger.warning("Failed to fetch %s: %s", url, e)
 
     return {"certificate": certificate, "sites": sites, "robots_txt": robots_txt}
