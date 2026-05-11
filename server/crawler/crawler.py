@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 
-from analysis.code_analysis import scan_code_for_vulnerabilities
+from analysis.code_analysis import scan_code_for_vulnerabilities, OLLAMA_MODEL
 from analysis.cookie_analysis import analyze_cookies_from_response
 from analysis.header_analysis import analyze_headers
 from crawler.robots_utils import fetch_robots_txt, is_disallowed
@@ -23,7 +23,7 @@ _LINK_ATTRS = ['href', 'routerlink', 'routerLink', 'ng-href', 'data-href', 'data
 _ROUTER_TO_TAGS = {'router-link', 'link', 'navlink'}
 
 
-def fetch_linked_scripts(soup, page_url, headers=None):
+def fetch_linked_scripts(soup, page_url, headers=None, model=OLLAMA_MODEL):
     """Fetch and scan same-domain JS files referenced by <script src>."""
     parsed_page = urlparse(page_url)
     results = []
@@ -40,7 +40,7 @@ def fetch_linked_scripts(soup, page_url, headers=None):
         try:
             js_response = safe_get(full_url, headers=headers, timeout=10)
             js_response.raise_for_status()
-            script_findings = scan_code_for_vulnerabilities(js_response.text, content_type="js").get("results", [])
+            script_findings = scan_code_for_vulnerabilities(js_response.text, content_type="js", model=model).get("results", [])
             for finding in script_findings:
                 finding["source"] = parsed_src.path
             results.extend(script_findings)
@@ -50,7 +50,7 @@ def fetch_linked_scripts(soup, page_url, headers=None):
     return results
 
 
-def process_page(url, headers=None):
+def process_page(url, headers=None, model=OLLAMA_MODEL):
     response = safe_get(url, headers=headers, timeout=10)
     response.raise_for_status()
     parsed_url = urlparse(url)
@@ -59,8 +59,8 @@ def process_page(url, headers=None):
     # Parse once; reuse soup for link collection and script fetching
     soup = BeautifulSoup(raw_html, 'html.parser')
 
-    html_findings = scan_code_for_vulnerabilities(raw_html).get("results", [])
-    script_findings = fetch_linked_scripts(soup, url, headers=headers)
+    html_findings = scan_code_for_vulnerabilities(raw_html, model=model).get("results", [])
+    script_findings = fetch_linked_scripts(soup, url, headers=headers, model=model)
 
     page_data = {
         "path": parsed_url.path or "/",
@@ -123,7 +123,7 @@ def extract_links(soup, base_url):
     return links
 
 
-def crawl_website_stream(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
+def crawl_website_stream(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5, model=OLLAMA_MODEL):
     """
     Generator that yields SSE event dicts as pages are crawled.
 
@@ -168,7 +168,7 @@ def crawl_website_stream(start_url, base_url, headers=None, max_pages=50, max_de
 
         with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
             future_to_url_depth = {
-                executor.submit(process_page, url, merged_headers): (url, depth)
+                executor.submit(process_page, url, merged_headers, model): (url, depth)
                 for url, depth in batch
             }
             for future in as_completed(future_to_url_depth):
@@ -190,11 +190,11 @@ def crawl_website_stream(start_url, base_url, headers=None, max_pages=50, max_de
     yield {"type": "done", "certificate": certificate, "robots_txt": robots_txt}
 
 
-def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
+def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5, model=OLLAMA_MODEL):
     sites = []
     certificate = None
     robots_txt = None
-    for event in crawl_website_stream(start_url, base_url, headers=headers, max_pages=max_pages, max_depth=max_depth, respect_robots=respect_robots, max_workers=max_workers):
+    for event in crawl_website_stream(start_url, base_url, headers=headers, max_pages=max_pages, max_depth=max_depth, respect_robots=respect_robots, max_workers=max_workers, model=model):
         if event["type"] == "page":
             sites.append(event["page"])
         elif event["type"] == "done":

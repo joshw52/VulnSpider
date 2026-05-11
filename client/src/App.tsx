@@ -9,6 +9,7 @@ import {
   Group,
   NumberInput,
   ScrollArea,
+  Select,
   Stack,
   Tabs,
   Text,
@@ -59,7 +60,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState<number>(0);
 
-  const handleScan = async (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '') => {
+  const handleScan = async (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '', model: string) => {
     setLoading(true);
     setScanProgress(0);
     setScanData(null);
@@ -81,6 +82,7 @@ function App() {
           url,
           respect_robots: respectRobots,
           max_pages: maxPages,
+          model,
           ...(maxDepth !== '' ? { max_depth: maxDepth } : {}),
         }),
       });
@@ -313,7 +315,7 @@ function App() {
 }
 
 interface ScanFormProps {
-  onScan: (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '') => void;
+  onScan: (url: string, respectRobots: boolean, maxPages: number, maxDepth: number | '', model: string) => void;
   loading: boolean;
 }
 
@@ -322,10 +324,26 @@ function ScanForm({ onScan, loading }: ScanFormProps) {
   const [respectRobots, setRespectRobots] = useState(false);
   const [maxPages, setMaxPages] = useState<number>(50);
   const [maxDepth, setMaxDepth] = useState<number | ''>('');
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [modelsLoading, setModelsLoading] = useState(true);
+
+  // Fetch available models from the backend on mount
+  useState(() => {
+    fetch(`${API_URL}/models`)
+      .then((r) => r.json())
+      .then((data) => {
+        const list: string[] = data.models ?? [];
+        setModels(list);
+        setSelectedModel(data.default ?? list[0] ?? '');
+      })
+      .catch(() => setModels([]))
+      .finally(() => setModelsLoading(false));
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) onScan(url.trim(), respectRobots, maxPages, maxDepth);
+    if (url.trim()) onScan(url.trim(), respectRobots, maxPages, maxDepth, selectedModel);
   };
 
   return (
@@ -383,6 +401,15 @@ function ScanForm({ onScan, loading }: ScanFormProps) {
                   size="sm"
                 />
               </Group>
+              <Select
+                data={models}
+                disabled={loading || modelsLoading || models.length === 0}
+                label="Model"
+                placeholder={modelsLoading ? 'Loading models…' : models.length === 0 ? 'No models available' : 'Select a model'}
+                value={selectedModel}
+                onChange={(v) => setSelectedModel(v ?? '')}
+                size="sm"
+              />
               <Checkbox
                 checked={respectRobots}
                 disabled={loading}

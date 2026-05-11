@@ -13,8 +13,18 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b")
 # Maximum number of characters sent to the model per request (~32 KB)
 _MAX_INPUT_CHARS = 32_768
 
-# Module-level singleton — created once, reused for every scan
+# Module-level singleton for the default model — created once, reused for every scan
 _ollama = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
+
+# Cache of additional model instances keyed by model name
+_ollama_cache: dict[str, OllamaLLM] = {OLLAMA_MODEL: _ollama}
+
+
+def _get_ollama(model: str) -> OllamaLLM:
+    """Return a cached OllamaLLM instance for *model*, creating one if necessary."""
+    if model not in _ollama_cache:
+        _ollama_cache[model] = OllamaLLM(model=model, base_url=OLLAMA_BASE_URL)
+    return _ollama_cache[model]
 
 
 def _parse_json_response(response: str) -> dict:
@@ -26,13 +36,14 @@ def _parse_json_response(response: str) -> dict:
     return json.loads(response.strip())
 
 
-def scan_code_for_vulnerabilities(code: str, content_type: str = "html") -> dict:
+def scan_code_for_vulnerabilities(code: str, content_type: str = "html", model: str = OLLAMA_MODEL) -> dict:
     """
     Analyzes the submitted code for vulnerabilities using Ollama.
 
     Args:
         code (str): The code to be scanned for vulnerabilities.
         content_type (str): The type of content being scanned. One of "html" or "js".
+        model (str): The Ollama model to use. Defaults to the OLLAMA_MODEL env var.
 
     Returns:
         dict: A dictionary containing the results of the vulnerability scan.
@@ -142,7 +153,7 @@ Return ONLY a valid JSON object in this exact format, with no extra text:
 {content_checklist}
 """
 
-        response = _ollama.invoke(prompt)
+        response = _get_ollama(model).invoke(prompt)
         data = _parse_json_response(response)
         # Filter out any results with no vulnerabilities (safety net in case the model ignores the prompt instruction)
         data["results"] = [r for r in data.get("results", []) if r.get("vulnerabilities")]

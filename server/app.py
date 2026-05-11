@@ -2,10 +2,12 @@ import json
 import logging
 import os
 
+import requests as http_client
 from flask import Flask, Response, request, jsonify, stream_with_context
 from flask_cors import CORS
 from urllib.parse import urlparse
 
+from analysis.code_analysis import OLLAMA_BASE_URL, OLLAMA_MODEL
 from crawler.crawler import crawl_website, crawl_website_stream
 from crawler.url_utils import _is_ssrf_safe
 
@@ -18,8 +20,8 @@ logging.basicConfig(
 app = Flask(__name__)
 
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:4000").split(",") if o.strip()]
-# Match both /crawl and /crawl/stream
-CORS(app, resources={r"/crawl.*": {"origins": _cors_origins}})
+# Match all routes so /models and any future endpoints are also covered
+CORS(app, resources={r"/*": {"origins": _cors_origins}})
 
 # Headers that must not be forwarded to downstream requests
 _HOP_BY_HOP_HEADERS = {
@@ -74,6 +76,10 @@ def _validate_crawl_request(data):
     if not isinstance(respect_robots, bool):
         return None, (jsonify({"error": "'respect_robots' must be a boolean"}), 400)
 
+    model = data.get('model', OLLAMA_MODEL)
+    if not isinstance(model, str) or not model.strip():
+        return None, (jsonify({"error": "'model' must be a non-empty string"}), 400)
+
     return {
         "url": url,
         "base_url": f"{parsed_url.scheme}://{parsed_url.netloc}",
@@ -81,6 +87,7 @@ def _validate_crawl_request(data):
         "max_pages": max_pages,
         "max_depth": max_depth,
         "respect_robots": respect_robots,
+        "model": model,
     }, None
 
 
@@ -96,6 +103,7 @@ def crawl():
         max_pages=params["max_pages"],
         max_depth=params["max_depth"],
         respect_robots=params["respect_robots"],
+        model=params["model"],
     )
     return jsonify(result), 200
 
@@ -114,6 +122,7 @@ def crawl_stream():
                 max_pages=params["max_pages"],
                 max_depth=params["max_depth"],
                 respect_robots=params["respect_robots"],
+                model=params["model"],
             ):
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:
@@ -127,6 +136,18 @@ def crawl_stream():
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.route('/models', methods=['GET'])
+def list_models():
+    try:
+        resp = http_client.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        resp.raise_for_status()
+        models = [m["name"] for m in resp.json().get("models", [])]
+        return jsonify({"models": models, "default": OLLAMA_MODEL}), 200
+    except http_client.RequestException as e:
+        logger.warning("Failed to reach Ollama API: %s", e)
+        return jsonify({"error": "Could not reach Ollama API", "models": [], "default": OLLAMA_MODEL}), 502
 
 
 @app.route('/health', methods=['GET'])
