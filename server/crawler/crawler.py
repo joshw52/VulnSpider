@@ -123,9 +123,15 @@ def extract_links(soup, base_url):
     return links
 
 
-def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
+def crawl_website_stream(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
+    """
+    Generator that yields SSE event dicts as pages are crawled.
+
+    Yields:
+        {"type": "page", "page": <page_data>}   — once per completed page
+        {"type": "done", "certificate": ..., "robots_txt": ...}  — final event
+    """
     parsed_base_url = urlparse(base_url)
-    sites = []
     crawled_urls = set()
     queued_urls = {start_url}
     # Frontier stores (url, depth) tuples — depth 0 is the start URL
@@ -153,7 +159,6 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=Non
 
     while frontier and len(crawled_urls) < max_pages:
         remaining = max_pages - len(crawled_urls)
-        # Take the next slice from the frontier and filter disallowed URLs
         to_process = frontier[:remaining]
         frontier = frontier[remaining:]
         batch = [(url, depth) for url, depth in to_process if _is_allowed(url)]
@@ -161,8 +166,6 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=Non
         if not batch:
             continue
 
-        # Process the batch in parallel; link discovery happens in the main thread
-        # after futures complete so crawled_urls / frontier mutations are thread-safe.
         with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
             future_to_url_depth = {
                 executor.submit(process_page, url, merged_headers): (url, depth)
@@ -173,9 +176,8 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=Non
                 try:
                     page_data, soup = future.result()
                     crawled_urls.add(url)
-                    sites.append(page_data)
+                    yield {"type": "page", "page": page_data}
 
-                    # Only follow links if we haven't hit the depth limit
                     if max_depth is None or depth < max_depth:
                         for new_url in extract_links(soup, base_url):
                             if new_url not in crawled_urls and new_url not in queued_urls:
@@ -185,4 +187,17 @@ def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=Non
                 except requests.RequestException as e:
                     logger.warning("Failed to fetch %s: %s", url, e)
 
+    yield {"type": "done", "certificate": certificate, "robots_txt": robots_txt}
+
+
+def crawl_website(start_url, base_url, headers=None, max_pages=50, max_depth=None, respect_robots=False, max_workers=5):
+    sites = []
+    certificate = None
+    robots_txt = None
+    for event in crawl_website_stream(start_url, base_url, headers=headers, max_pages=max_pages, max_depth=max_depth, respect_robots=respect_robots, max_workers=max_workers):
+        if event["type"] == "page":
+            sites.append(event["page"])
+        elif event["type"] == "done":
+            certificate = event["certificate"]
+            robots_txt = event["robots_txt"]
     return {"certificate": certificate, "sites": sites, "robots_txt": robots_txt}
