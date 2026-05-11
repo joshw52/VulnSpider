@@ -28,12 +28,22 @@ export interface Link {
   link: string;
 }
 
+export interface HeaderFinding {
+  header: string;
+  present: boolean;
+  value: string | null;
+  severity: SeverityLevel;
+  description: string;
+  recommendation: string;
+}
+
 export interface Site {
   path: string;
   html_content: string;
   links: Link[];
   response_headers: Record<string, string>;
   code_analysis: CodeFinding[];
+  header_analysis: HeaderFinding[];
 }
 
 export interface ScanData {

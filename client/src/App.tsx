@@ -31,6 +31,7 @@ import type {
   ScanData,
   Site,
   CodeFinding,
+  HeaderFinding,
   ViewMode,
   FindingTabKey,
   PathCardStats,
@@ -426,6 +427,8 @@ interface FindingsViewProps {
 }
 
 function FindingsView({ site }: FindingsViewProps) {
+  const headerFindings: HeaderFinding[] = site.header_analysis ?? [];
+
   const groupedFindings: Record<FindingTabKey, CodeFinding[]> = {
     all: site.code_analysis,
     vulnerabilities: site.code_analysis.filter((f) => f.vulnerabilities.length > 0),
@@ -445,6 +448,9 @@ function FindingsView({ site }: FindingsViewProps) {
             </Tabs.Tab>
           ),
         )}
+        <Tabs.Tab value="headers">
+          Headers ({headerFindings.length})
+        </Tabs.Tab>
       </Tabs.List>
 
       {(Object.entries(groupedFindings) as [FindingTabKey, CodeFinding[]][]).map(
@@ -464,6 +470,10 @@ function FindingsView({ site }: FindingsViewProps) {
           </Tabs.Panel>
         ),
       )}
+
+      <Tabs.Panel value="headers">
+        <HeadersPanel findings={headerFindings} />
+      </Tabs.Panel>
     </Tabs>
   );
 }
@@ -671,6 +681,56 @@ function getTypeIcon(type: FindingType): string {
     link: '🌐',
   };
   return icons[type] || '📄';
+}
+
+interface HeadersPanelProps {
+  findings: HeaderFinding[];
+}
+
+function HeadersPanel({ findings }: HeadersPanelProps) {
+  if (findings.length === 0) {
+    return (
+      <Text c="dimmed" ta="center" mt="xl">
+        ✅ All security headers are present and correctly configured
+      </Text>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {findings.map((finding, idx) => (
+        <Paper
+          className={`vuln-paper vuln-${finding.severity}`}
+          key={idx}
+          p="sm"
+          radius="sm"
+        >
+          <Group gap="xs" mb={4} justify="space-between">
+            <Group gap="xs">
+              <Text fw={600} size="sm">
+                {finding.header}
+              </Text>
+              <Badge color={finding.present ? 'blue' : 'gray'} size="xs" variant="light">
+                {finding.present ? 'Present' : 'Missing'}
+              </Badge>
+            </Group>
+            <SeverityBadge severity={finding.severity} />
+          </Group>
+          {finding.value && (
+            <Text c="dimmed" mb={4} size="xs">
+              Value: <Code>{finding.value}</Code>
+            </Text>
+          )}
+          <Text size="sm">
+            <strong>Issue:</strong> {finding.description}
+          </Text>
+          <Text size="sm">
+            <strong>Recommendation:</strong> {finding.recommendation}
+          </Text>
+        </Paper>
+      ))}
+    </Stack>
+  );
 }
 
 export default App;

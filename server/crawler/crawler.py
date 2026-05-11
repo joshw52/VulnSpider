@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 
 from analysis.code_analysis import scan_code_for_vulnerabilities
+from analysis.header_analysis import analyze_headers
 from crawler.ssl_utils import get_ssl_certificate
 from crawler.url_utils import categorize_url, safe_get
 
@@ -64,6 +65,7 @@ def process_page(url, headers=None):
         "links": [],
         "response_headers": [f"{k}: {v}" for k, v in response.headers.items()],
         "code_analysis": html_findings + script_findings,
+        "header_analysis": analyze_headers(dict(response.headers)),
     }
 
     # Collect hrefs from standard and framework-specific link attributes
